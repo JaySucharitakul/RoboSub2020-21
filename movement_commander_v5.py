@@ -7,7 +7,6 @@
 #
 import time
 import random
-import pyfirmata
 import math
 from threading import Thread
 
@@ -27,12 +26,8 @@ class MovementCommander:
     def __init__(self, usingvision, usingpixhawk, usingsim):
         # setting up board serial port
         print("Communicating with Arduino...")
-        # something so the serial buffer doesn't overflow
-        self.board = pyfirmata.ArduinoMega(
-            '/dev/serial/by-id/usb-Arduino__www.arduino.cc__0042_55839313438351417131-if00')
-        self.iterator = pyfirmata.util.Iterator(self.board)
-        self.iterator.start()
 
+        # something so the serial buffer doesn't overflow
         print("Communication with Arduino started...")
 
         self.YawOffset = 0
@@ -66,17 +61,16 @@ class MovementCommander:
         else:
             print("MovementCommander is not using Telemetry...")
         # thruster hardpoint classes
-        self.ThrusterLB = ThrusterDriver(2, self.board)  # left back
-        self.ThrusterLF = ThrusterDriver(4, self.board)  # left front
-        self.ThrusterRB = ThrusterDriver(3, self.board)  # right back
-        self.ThrusterRF = ThrusterDriver(5, self.board)  # right front
-        self.ThrusterBL = ThrusterDriver(6, self.board)  # back left
-        self.ThrusterBR = ThrusterDriver(7, self.board)  # back right
-        self.ThrusterFL = ThrusterDriver(8, self.board)  # front left
-        self.ThrusterFR = ThrusterDriver(9, self.board)  # front right
+        self.ThrusterLB = ThrusterDriver()  # left back
+        self.ThrusterLF = ThrusterDriver()  # left front
+        self.ThrusterRB = ThrusterDriver()  # right back
+        self.ThrusterRF = ThrusterDriver()  # right front
+        self.ThrusterBL = ThrusterDriver()  # back left
+        self.ThrusterBR = ThrusterDriver()  # back right
+        self.ThrusterFL = ThrusterDriver()  # front left
+        self.ThrusterFR = ThrusterDriver()  # front right
         print("Wait 3 to arm thrusters...")
         time.sleep(3)
-68
         # power values to set to the thruster hardpoints
         # horizontally oriented
         self.PowerLB = 0
@@ -227,8 +221,6 @@ class MovementCommander:
                         print("Yaw: ", self.PixHawk.getYaw())
                         print("Pitch: ", self.PixHawk.getPitch())
                         print("Down: ", self.PixHawk.getDown())
-                        # print("Roll: ", self.PixHawk.getRoll())
-                        # print("Right Back speed: ", MapToSpeed(self.ThrusterRB.GetSpeed()))
                         if self.TargetOrPosition == A_GYRO:
                             self.CheckIfGyroDone()
                             self.Running = self.GyroRunning
@@ -250,7 +242,7 @@ class MovementCommander:
     def CheckIfGyroDone(self, threshold=3, timethreshold=5):
         self.PowerBR = -10
         self.PowerBL = -10
-        self.PitchOffset = 0 
+        self.PitchOffset = 0
         if (abs(self.PixHawk.getYaw() - self.YawOffset) < threshold) and (
                 abs(self.PixHawk.getPitch() - self.PitchOffset) < threshold) and (
                 abs(self.PixHawk.getRoll() - self.RollOffset) < threshold):
@@ -260,6 +252,9 @@ class MovementCommander:
                 self.GyroRunning = False
         else:
             self.InitialTime = time.perf_counter()
+
+    def SendToArduino(self):
+        outdata = "";
 
     def CheckIfPositionDone(self, threshold=3, timethreshold=5):
         if (abs(self.PixHawk.getNorth() - self.NorthOffset) < threshold) and (
@@ -631,43 +626,28 @@ class MovementCommander:
             self.VisionAI.terminate()
         print("Killing board. Wait 1...")
         time.sleep(1)
-        self.board.exit()
 
 
 def MapToPWM(x) -> float:
     in_min = -100.0
     in_max = 100.0
-    out_min = 46.5
-    out_max = 139.5
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
-
-
-def MapToSpeed(x) -> float:
-    out_min = -100.0
-    out_max = 100.0
-    in_min = 46.5
-    in_max = 139.5
+    out_min = 1100
+    out_max = 1900
     return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min
 
 
 # dedicated class to driving a specific thruster
 # has own PID, thruster, speed
 class ThrusterDriver:
-    def __init__(self, pin, board):
-        connectstring = "d:" + str(pin) + ":s"
-        self.thruster = board.get_pin(connectstring)
-        print("Initializing Thruster: ", connectstring)
-        self.speed = 93
-        self.thruster.write(self.speed)
+    def __init__(self):
+        self.speed = 0
 
-    # sets speed of thruster
     def SetSpeed(self, speed):  # speed is a value between -100 and 100
         if speed > MAX_THROTTLE:
             speed = MAX_THROTTLE
         elif speed < -MAX_THROTTLE:
             speed = -MAX_THROTTLE
         self.speed = MapToPWM(speed)
-        self.thruster.write(self.speed)
 
     #  sets speed of thruster and incorporates the addition of pwm variables
     def SetSpeedPID(self, speed, rollpid=0.0, pitchpid=0.0, yawpid=0.0):
@@ -677,7 +657,6 @@ class ThrusterDriver:
         elif self.speed < -MAX_THROTTLE:
             self.speed = -MAX_THROTTLE
         self.speed = MapToPWM(self.speed)
-        self.thruster.write(self.speed)
 
     # returns speed
     def GetSpeed(self):

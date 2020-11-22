@@ -1,0 +1,16 @@
+appdirs==1.4.4
+distlib==0.3.1
+dronekit==2.9.2
+dronekit-sitl==3.3.0
+filelock==3.0.12
+future==0.18.2
+Keras-Applications==1.0.6
+Keras-Preprocessing==1.0.5
+lxml==4.5.2
+monotonic==1.5
+numpy==1.19.1
+psutil==5.7.2
+pymavlink==2.4.9
+PyQt5==5.15.0
+PyQt5-sip==12.8.0
+virtualenv==20.0.28
